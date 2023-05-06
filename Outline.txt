@@ -1,0 +1,8 @@
+
+✔️❌
+
+❌ Grid of tiles each with a candy type
+❌ Canvas on top of grid to draw visual effects
+❌ Four phases of game cycle
+❌ Animated progression of destruction
+❌ Gravitational fall, and spawning of candy from top
