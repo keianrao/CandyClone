@@ -25,6 +25,9 @@ cBoard = {
 		install(x, y, type) {
 			this.board[x + ", " + y] = type;
 		},
+		mergeDelete(x, y, mergeXVec, mergeYVec) {
+			this.board[x + ", " + y] = "empty";
+		},
 		dropFromAbove(x, type) {
 			let y;
 			for (y = 1; y <= 10; ++y)
@@ -93,12 +96,86 @@ cGame = {
 			// Return true if destruction happened
 			return false;
 		},
-		combine() {
-			// Find patterns of combination in the board
+		combine(userXVec, userYVec) {
+			let board = this.$refs["board"];
+			
+			let horizontal = function(x, y) {
+				let deletees = [
+					{ x: x + 0, y: y, type: board.lookup(x + 0, y) },
+					{ x: x + 1, y: y, type: board.lookup(x + 1, y) },
+					{ x: x + 2, y: y, type: board.lookup(x + 2, y) },
+				];
+				let anyEmpty = deletees.some(d => d.type == "empty");
+				let allEqual = deletees.every(d => d.type == deletees[0].type);
+ 
+				let yes = allEqual && !anyEmpty;
+				let replacement = {
+					x: userXVec == -1 ? (x + 2) : x,
+					y: y,
+					type: deletees[0].type
+				};
+				let priority = (userXVec != 0) ? 1 : 0; 
+
+				return [yes, replacement, deletees, priority];
+			};
+			let vertical = function(x, y) {
+				let deletees = [
+					{ x: x, y: y + 0, type: board.lookup(x, y + 0) },
+					{ x: x, y: y + 1, type: board.lookup(x, y + 1) },
+					{ x: x, y: y + 2, type: board.lookup(x, y + 2) },
+				];
+				let anyEmpty = deletees.some(d => d.type == "empty");
+				let allEqual = deletees.every(d => d.type == deletees[0].type); 
+				
+				let yes = allEqual && !anyEmpty;
+				let replacement = {
+					x: x,
+					y: userYVec == -1 ? (y + 2) : y,
+					type: deletees[0].type
+				};
+				let priority = (userYVec != 0) ? 1 : 0; 
+				
+				return [yes, replacement, deletees, priority];
+			};
+			let combinations = [horizontal, vertical];
+
+			valids = [];
+			highestPriority = 0;
+			for (let y = 1; y <= 10; ++y)
+			for (let x = 1; x <= 10; ++x)
+			for (let combination of combinations)
+			{
+				let candidate = combination(x, y);
+				if (candidate[0]) {
+					valids.push(candidate);
+					if (candidate[3] > highestPriority)
+						highestPriority = candidate[3];
+				}
+			}
+			
 			// Select the best ones
+			chosen = [];
+			for (let priority = highestPriority; priority >= 0; --priority)
+			{
+				let competitors = valids.filter(
+					candidate => candidate[3] == priority);
+				if (competitors.length == 0) continue;
+				let roll = Math.floor(Math.random() * competitors.length);
+				chosen.push(competitors[roll]);
+			}
+
 			// Combine them
-			// Return true if combination happened
-			return false;
+			for (let result of chosen)
+			{
+				for (let deletee of result[2])
+					board.mergeDelete(
+						deletee.x, deletee.y,
+						result[1].x - deletee.x,
+						result[1].y - deletee.y);
+				board.install(result[1].x, result[1].y, result[1].type);
+			}
+			
+			return chosen.length > 0;
 		},
 		gravity() {
 			let board = this.$refs["board"];
@@ -143,15 +220,18 @@ cGame = {
 
 			return generate;
 		},
-		evaluateLoop() {
+		evaluateLoop(userXVec, userYVec) {
 			while (true) {
 				let changed = false;
 				changed |= this.destroy();				
 				if (changed) continue;
-				changed |= this.combine();
+				changed |= this.combine(userXVec, userYVec);
 				changed |= this.gravity();
 				changed |= this.generate();
-				if (changed) continue;
+				if (changed) {
+					userXVec = userYVec = 0;
+					continue;
+				};
 				break;
 			}
 		},
