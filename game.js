@@ -85,97 +85,144 @@ cEffects = {
 };
 
 cGame = {
+	data() {
+		let horizontal3 = {
+			right: [
+				["same", "any"],
+				["same", "any"],
+				["diff", "any"]
+			],
+			product: "empty"
+		};
+		let vertical3 = {
+			bottom: [
+				["same", "any"],
+				["same", "any"],
+				["diff", "any"]
+			],
+			product: "empty"
+		};
+		let horizontal4 = {
+			bottom: [
+				["same", "any"],
+				["same", "any"],
+				["same", "any"],
+				["diff", "any"]
+			],
+			product: "same striped"
+		};
+		let vertical4 = {
+			bottom: [
+				["same", "any"],
+				["same", "any"],
+				["same", "any"],
+				["diff", "any"]
+			],
+			product: "same striped"
+		};
+		return {
+			patterns: [
+				horizontal3,
+				vertical3,
+				horizontal4,
+				vertical4
+			]
+		};
+	},
+	computed: {
+		classes() {
+			return {
+				debug: true
+			};
+		}
+	},
 	methods: {
+		window(x, y) {
+			let board = this.$refs["board"];
+			
+			function walk(dx, dy) {
+				let returnee = [];
+				for (let n = 1; true; ++n) {
+					let xNext = x + (n * dx);
+					let yNext = y + (n * dy);
+					let oob = xNext < 1 || xNext > 10 || yNext < 1 || yNext > 10;
+					if (oob) break;
+					let next = board.lookup(xNext, yNext).split(" ");
+					if (next[0] == "empty") break;
+					if (n > 1) {
+						let same_colour = next[0] == returnee[0];
+						if (!same_colour) break;
+					}
+					returnee.push(next);
+				}
+				return returnee;
+			}
+			return {
+				x: x, y: y,
+				core: board.lookup(x, y).split(" "),
+				right: walk(+1, 0),
+				bottom: walk(0, +1)
+				// I don't bother with top and left because I check
+				// for patterns from top-left down to bottom-right,
+				// so I would always trigger top-left corner of any
+				// pattern first. 
+			};
+		},
+		match(window, patterns) {
+			function direction_match(direction_name, pattern) {
+				let direction_in_pattern = pattern[direction_name];
+				let direction_in_window = window[direction_name];
+				
+				let ok = true;
+				for (let o = 0; o < pattern[direction_name].length; ++o) {	
+					let required = direction_in_pattern[o];
+					let present = direction_in_window[o];
+
+					if (present == undefined) {
+						ok &=
+							required[0] == "diff"
+							&& required[1] == "any";
+						continue;						
+					}
+					if (required[0] == "same")
+						ok &= present[0] == window.core[0];
+					if (required[0] == "diff")
+						ok &= present[0] != window.core[0];
+					if (required[1] == "striped")
+						ok &= present[1] == "striped";
+				}
+
+				return ok;
+			}
+
+			let chosen = null;
+			for (let pattern of patterns) {
+				if (pattern.right)
+					if (!direction_match("right", pattern)) continue;
+				if (pattern.bottom)
+					if (!direction_match("bottom", pattern)) continue;				
+				chosen = pattern;
+			}
+			return chosen;
+		},
 		victory() {
 			return false;
 		},
-		destroy() {
+		explode() {
 			// For each triggered candy
 			// Identify their zone of destruction
 			// Eliminate candies in the zone
-			// Return true if destruction happened
 			return false;
 		},
-		combine(userXVec, userYVec) {
+		combine() {
 			let board = this.$refs["board"];
-			
-			let horizontal = function(x, y) {
-				let deletees = [
-					{ x: x + 0, y: y, type: board.lookup(x + 0, y) },
-					{ x: x + 1, y: y, type: board.lookup(x + 1, y) },
-					{ x: x + 2, y: y, type: board.lookup(x + 2, y) },
-				];
-				let anyEmpty = deletees.some(d => d.type == "empty");
-				let allEqual = deletees.every(d => d.type == deletees[0].type);
- 
-				let yes = allEqual && !anyEmpty;
-				let replacement = {
-					x: userXVec == -1 ? (x + 2) : x,
-					y: y,
-					type: deletees[0].type
-				};
-				let priority = (userXVec != 0) ? 1 : 0; 
 
-				return [yes, replacement, deletees, priority];
-			};
-			let vertical = function(x, y) {
-				let deletees = [
-					{ x: x, y: y + 0, type: board.lookup(x, y + 0) },
-					{ x: x, y: y + 1, type: board.lookup(x, y + 1) },
-					{ x: x, y: y + 2, type: board.lookup(x, y + 2) },
-				];
-				let anyEmpty = deletees.some(d => d.type == "empty");
-				let allEqual = deletees.every(d => d.type == deletees[0].type); 
-				
-				let yes = allEqual && !anyEmpty;
-				let replacement = {
-					x: x,
-					y: userYVec == -1 ? (y + 2) : y,
-					type: deletees[0].type
-				};
-				let priority = (userYVec != 0) ? 1 : 0; 
-				
-				return [yes, replacement, deletees, priority];
-			};
-			let combinations = [horizontal, vertical];
-
-			valids = [];
-			highestPriority = 0;
 			for (let y = 1; y <= 10; ++y)
-			for (let x = 1; x <= 10; ++x)
-			for (let combination of combinations)
-			{
-				let candidate = combination(x, y);
-				if (candidate[0]) {
-					valids.push(candidate);
-					if (candidate[3] > highestPriority)
-						highestPriority = candidate[3];
-				}
+			for (let x = 1; x <= 10; ++x) {
+				let combination = this.match(this.window(x, y), this.patterns);
+				if (!combination) continue;
+				// We need to determine deletion region
 			}
-			
-			// Select the best ones
-			chosen = [];
-			for (let priority = highestPriority; priority >= 0; --priority)
-			{
-				let competitors = valids.filter(
-					candidate => candidate[3] == priority);
-				if (competitors.length == 0) continue;
-				let roll = Math.floor(Math.random() * competitors.length);
-				chosen.push(competitors[roll]);
-			}
-
-			// Combine them
-			for (let result of chosen)
-			{
-				for (let deletee of result[2])
-					board.mergeDelete(
-						deletee.x, deletee.y,
-						result[1].x - deletee.x,
-						result[1].y - deletee.y);
-				board.install(result[1].x, result[1].y, result[1].type);
-			}
-			
-			return chosen.length > 0;
 		},
 		gravity() {
 			let board = this.$refs["board"];
@@ -220,31 +267,20 @@ cGame = {
 
 			return generate;
 		},
-		evaluateLoop(userXVec, userYVec) {
-			while (true) {
+		evaluateLoop() {
+			do {
 				let changed = false;
-				changed |= this.destroy();				
+				changed |= this.explode();				
 				if (changed) continue;
-				changed |= this.combine(userXVec, userYVec);
-				changed |= this.gravity();
-				changed |= this.generate();
-				if (changed) {
-					userXVec = userYVec = 0;
-					continue;
-				};
-				break;
-			}
+				changed |= this.combine();
+				//changed |= this.gravity();
+				//changed |= this.generate();
+				if (changed) continue;
+			} while (false);
 		},
 	},
 	mounted() {
 		this.evaluateLoop();
-	},
-	computed: {
-		classes() {
-			return {
-				debug: true
-			}
-		}
 	},
 	components: {
 		Board: cBoard,
