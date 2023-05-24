@@ -7,10 +7,16 @@ cTile = {
 	props: {
 		x: Number,
 		y: Number,
-		type: String
+		type: String,
+		state: String
+	},
+	computed: {
+		classes() {
+			return this.state;
+		},
 	},
 	template: `
-		<div class="tile">
+		<div class="tile" :class="classes">
 			<img :src="type + '.png'">
 			{{ x }}, {{ y }}
 		</div>
@@ -19,28 +25,90 @@ cTile = {
 
 cBoard = {
 	methods: {
-		lookup(x, y) {
-			return this.board[x + ", " + y];
+		lookupType(x, y) {
+			let type = this.board[x + ", " + y];
+			type = type.split(" ")[0];
+			return type;
+		},
+		lookupState(x, y) {
+			let type = this.board[x + ", " + y];
+			let state =
+				(type.includes(" src") ? "src" : "")
+				+ (type.includes(" dest") ? "dest" : "");
+			return state;
+		},
+		performChanges() {
+			for (let change of this.changeQueue) {
+				if (change.change == "install") {
+					let board = this.board;
+					let preAction = function() {
+						board[change.x + ", " + change.y] += " dest";
+					};
+					let postAction = function() {
+						board[change.x + ", " + change.y] = change.type;
+					};
+					preAction();
+					setInterval(postAction, 500);
+				}
+
+				if (change.change == "move") {
+					let board = this.board;
+					let preAction = function() {
+						board[change.xs + ", " + change.ys] += " src";
+						board[change.xe + ", " + change.ye] += " dest";
+					};
+					let postAction = function() {
+						let type = board[change.xs + ", " + change.ys];
+						board[change.xs + ", " + change.ys] = "empty";
+						board[change.xe + ", " + change.ye] = type;
+					};
+					preAction();
+					setInterval(postAction, 500);
+				}
+
+				if (change.change == "drop") {
+					let board = this.board;
+					let preAction = function() {
+						board[change.xe + ", " + change.ye] += " dest";
+					};
+					let postAction = function() {
+						board[change.xe + ", " + change.ye] = change.type;
+					};
+					preAction();
+					setInterval(postAction, 500);
+				};
+			};
 		},
 		install(x, y, type) {
-			this.board[x + ", " + y] = type;
-		},
-		mergeDelete(x, y, mergeXVec, mergeYVec) {
-			this.board[x + ", " + y] = "empty";
-		},
-		dropFromAbove(x, type) {
-			let y;
-			for (y = 1; y <= 10; ++y)
-				if (this.lookup(x, y) != "empty")
-					break;
-
-			if (y == 1) return false;
-			this.board[x + ", " + (y - 1)] = type;
-			return true;
+			this.changeQueue.push({
+				change: "install",
+				x: x,
+				y: y,
+				type: type
+			});
 		},
 		move(xs, ys, xe, ye) {
-			this.board[xe + ", " + ye] = this.board[xs + ", " + ys];
-			this.board[xs + ", " + ys] = "empty";
+			this.changeQueue.push({
+				change: "move",
+				xs: xs,
+				ys: ys,
+				xe: xe,
+				ye: ye
+			});
+		},
+		dropFromAbove(x, type) {
+			let empty = y => this.lookupType(x, y) == "empty";
+			let y;
+			for (y = 1; y <= 10 && empty(y); ++y);
+			if (y == 1) return false;
+
+			this.changeQueue.push({
+				change: "drop",
+				xe: x,
+				ye: y - 1,
+				type: type
+			});
+			return true;
 		},
 		generateRandomType() {
 			let roll = Math.floor(Math.random() * 3);
@@ -61,6 +129,7 @@ cBoard = {
 		
 		return {
 			board: board,
+			changeQueue: [],
 			ys: ys, xs: xs
 		};
 	},
@@ -72,7 +141,8 @@ cBoard = {
 			<div v-for="y in ys">
 				<Tile v-for="x in xs"
 					:x="x" :y="y"
-					:type="board[x + ', ' + y] " />
+					:type="lookupType(x, y)"
+					:state="lookupState(x, y)" />
 			</div>
 		</div>
 	`
@@ -147,7 +217,7 @@ cGame = {
 					let yNext = y + (n * dy);
 					let oob = xNext < 1 || xNext > 10 || yNext < 1 || yNext > 10;
 					if (oob) break;
-					let next = board.lookup(xNext, yNext).split(" ");
+					let next = board.lookupType(xNext, yNext);
 					if (next[0] == "empty") break;
 					if (n > 1) {
 						let same_colour = next[0] == returnee[0];
@@ -159,7 +229,7 @@ cGame = {
 			}
 			return {
 				x: x, y: y,
-				core: board.lookup(x, y).split(" "),
+				core: board.lookupType(x, y),
 				right: walk(+1, 0),
 				bottom: walk(0, +1)
 				// I don't bother with top and left because I check
@@ -200,7 +270,7 @@ cGame = {
 				if (pattern.right)
 					if (!direction_match("right", pattern)) continue;
 				if (pattern.bottom)
-					if (!direction_match("bottom", pattern)) continue;				
+					if (!direction_match("bottom", pattern)) continue;
 				chosen = pattern;
 			}
 			return chosen;
@@ -223,33 +293,35 @@ cGame = {
 				if (!combination) continue;
 				// We need to determine deletion region
 			}
+			board.performChanges();
+
+			return false;
 		},
 		gravity() {
 			let board = this.$refs["board"];
 			let gravity = false;
 			
 			for (let x = 1; x <= 10; ++x)
-			for (let y = 10; y >= 1; --y)
+			for (let ye = 10; ye >= 1; --ye)
 			{
-				let destType = board.lookup(x, y);
-				if (destType != "empty") continue;
+				// For every column, starting from bottom..
+				// (This is an imperative algorithm that probably
+				// broke in our two-step transition.)
 
-				let src = null;
-				for (let ys = y - 1; ys >= 1; --ys)
+				if (board.lookupType(x, ye) != "empty") continue;
+
+				let empty = ys => board.lookupType(x, ys) == "empty";
+				let ys;
+				for (ys = ye - 1; ys >= 1 && empty(ys); --ys);
+
+				if (ys > 0)
 				{
-					let srcType = board.lookup(x, ys);
-					if (srcType != "empty") {
-						src = { x: x, y: ys };
-						break;
-					}
-				}
-				if (src)
-				{
-					board.move(src.x, src.y, x, y);
+					board.move(x, ys, x, ye);
 					// Possibly remove candy from play
 					gravity = true;
 				}
 			}
+			board.performChanges();
 
 			return gravity;
 		},
@@ -264,17 +336,17 @@ cGame = {
 					if (!stopped) generate = true;
 				}
 			}
+			board.performChanges();
 
 			return generate;
 		},
 		evaluateLoop() {
 			do {
 				let changed = false;
-				changed |= this.explode();				
-				if (changed) continue;
-				changed |= this.combine();
-				//changed |= this.gravity();
-				//changed |= this.generate();
+				//changed |= this.combine();
+				//console.log("COMBINE " + changed);
+				changed |= this.gravity();
+				console.log("GRAVITY " + changed);
 				if (changed) continue;
 			} while (false);
 		},
