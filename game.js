@@ -48,22 +48,22 @@ cBoard = {
 						board[change.x + ", " + change.y] = change.type;
 					};
 					preAction();
-					setInterval(postAction, 500);
+					setTimeout(postAction, 500);
 				}
 
 				if (change.change == "move") {
 					let board = this.board;
 					let preAction = function() {
-						board[change.xs + ", " + change.ys] += " src";
 						board[change.xe + ", " + change.ye] += " dest";
+						board[change.xs + ", " + change.ys] += " src";
 					};
 					let postAction = function() {
 						let type = board[change.xs + ", " + change.ys];
-						board[change.xs + ", " + change.ys] = "empty";
 						board[change.xe + ", " + change.ye] = type;
+						board[change.xs + ", " + change.ys] = "empty";
 					};
 					preAction();
-					setInterval(postAction, 500);
+					setTimeout(postAction, 500);
 				}
 
 				if (change.change == "drop") {
@@ -226,7 +226,7 @@ cGame = {
 					returnee.push(next);
 				}
 				return returnee;
-			}
+			};
 			return {
 				x: x, y: y,
 				core: board.lookupType(x, y),
@@ -346,9 +346,8 @@ cGame = {
 				//changed |= this.combine();
 				//console.log("COMBINE " + changed);
 				changed |= this.gravity();
-				console.log("GRAVITY " + changed);
-				if (changed) continue;
-			} while (false);
+				if (changed) break;
+			} while (true);
 		},
 	},
 	mounted() {
