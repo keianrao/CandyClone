@@ -40,7 +40,6 @@ cBoard = {
 		},
 		async performChanges() {
 			let promises = [];
-
 			for (let change of this.changeQueue) {
 				if (change.change == "install") {
 					let board = this.board;
@@ -52,7 +51,7 @@ cBoard = {
 								board[change.x + ", " + change.y] = change.type;
 								resolve();
 						};
-						setTimeout(postAction, 500);
+						setTimeout(postAction, 750);
 					};
 					preAction();
 					promises.push(new Promise(setupPostAction));
@@ -71,7 +70,7 @@ cBoard = {
 							board[change.xs + ", " + change.ys] = "empty";
 							resolve();
 						};
-						setTimeout(postAction, 500);
+						setTimeout(postAction, 750);
 					}
 					preAction();
 					promises.push(new Promise(setupPostAction));
@@ -87,14 +86,13 @@ cBoard = {
 							board[change.xe + ", " + change.ye] = change.type;
 							resolve();
 						};
-						setInterval(postAction, 500);
+						setInterval(postAction, 750);
 					}
 					preAction();
 					promises.push(new Promise(setupPostAction));
-				};
-
-				await Promise.all(promises);
+				}
 			};
+			await Promise.all(promises);
 		},
 		install(x, y, type) {
 			this.changeQueue.push({
@@ -322,8 +320,11 @@ cGame = {
 			for (let ye = 10; ye >= 1; --ye)
 			{
 				// For every column, starting from bottom..
-				// (This is an imperative algorithm that probably
-				// broke in our two-step transition.)
+				// (This is an imperative algorithm that is
+				// unsuitable for our two-step transition,
+				// as upper droppees have outdated information
+				// of what will be below them. We should just
+				// handle a column of candies as a packable group.
 
 				if (board.lookupType(x, ye) != "empty") continue;
 
@@ -333,7 +334,7 @@ cGame = {
 
 				if (ys >= 1)
 				{
-					console.log("Moving " + x + ", " + ys);
+					console.log("Moving " + x + ", " + ys + " to " + ye + "(" + board.lookupType(x, ye) + ")");
 					board.move(x, ys, x, ye);
 					// Possibly remove candy from play
 					gravity = true;
@@ -354,7 +355,7 @@ cGame = {
 					if (!stopped) generate = true;
 				}
 			}
-			board.performChanges();
+			await board.performChanges();
 
 			return generate;
 		},
@@ -364,7 +365,7 @@ cGame = {
 				//changed |= this.combine();
 				//console.log("COMBINE " + changed);
 				changed |= await this.gravity();
-				if (changed) break;
+				if (!changed) break;
 			} while (true);
 		},
 	},
