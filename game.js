@@ -1,6 +1,7 @@
 
 log = document.getElementById("log");
-log.println = string => log.innerText += string + "\n";
+//log.println = string => log.innerText += string + "\n";
+log.println = string => log.innerText = string + "\n" + log.innerText;
 log.println("Ready.");
 
 cTile = {
@@ -37,18 +38,24 @@ cBoard = {
 				+ (type.includes(" dest") ? "dest" : "");
 			return state;
 		},
-		performChanges() {
+		async performChanges() {
+			let promises = [];
+
 			for (let change of this.changeQueue) {
 				if (change.change == "install") {
 					let board = this.board;
 					let preAction = function() {
 						board[change.x + ", " + change.y] += " dest";
 					};
-					let postAction = function() {
-						board[change.x + ", " + change.y] = change.type;
+					let setupPostAction = function(resolve) { 
+						let postAction = function() {
+								board[change.x + ", " + change.y] = change.type;
+								resolve();
+						};
+						setTimeout(postAction, 500);
 					};
 					preAction();
-					setTimeout(postAction, 500);
+					promises.push(new Promise(setupPostAction));
 				}
 
 				if (change.change == "move") {
@@ -57,13 +64,17 @@ cBoard = {
 						board[change.xe + ", " + change.ye] += " dest";
 						board[change.xs + ", " + change.ys] += " src";
 					};
-					let postAction = function() {
-						let type = board[change.xs + ", " + change.ys];
-						board[change.xe + ", " + change.ye] = type;
-						board[change.xs + ", " + change.ys] = "empty";
-					};
+					let setupPostAction = function(resolve) {
+						let postAction = function() {
+							let type = board[change.xs + ", " + change.ys];
+							board[change.xe + ", " + change.ye] = type;
+							board[change.xs + ", " + change.ys] = "empty";
+							resolve();
+						};
+						setTimeout(postAction, 500);
+					}
 					preAction();
-					setTimeout(postAction, 500);
+					promises.push(new Promise(setupPostAction));
 				}
 
 				if (change.change == "drop") {
@@ -71,12 +82,18 @@ cBoard = {
 					let preAction = function() {
 						board[change.xe + ", " + change.ye] += " dest";
 					};
-					let postAction = function() {
-						board[change.xe + ", " + change.ye] = change.type;
-					};
+					let setupPostAction = function(resolve) {
+						let postAction = function() {
+							board[change.xe + ", " + change.ye] = change.type;
+							resolve();
+						};
+						setInterval(postAction, 500);
+					}
 					preAction();
-					setInterval(postAction, 500);
+					promises.push(new Promise(setupPostAction));
 				};
+
+				await Promise.all(promises);
 			};
 		},
 		install(x, y, type) {
@@ -278,13 +295,13 @@ cGame = {
 		victory() {
 			return false;
 		},
-		explode() {
+		async explode() {
 			// For each triggered candy
 			// Identify their zone of destruction
 			// Eliminate candies in the zone
 			return false;
 		},
-		combine() {
+		async combine() {
 			let board = this.$refs["board"];
 
 			for (let y = 1; y <= 10; ++y)
@@ -293,11 +310,11 @@ cGame = {
 				if (!combination) continue;
 				// We need to determine deletion region
 			}
-			board.performChanges();
+			await board.performChanges();
 
 			return false;
 		},
-		gravity() {
+		async gravity() {
 			let board = this.$refs["board"];
 			let gravity = false;
 			
@@ -314,18 +331,19 @@ cGame = {
 				let ys;
 				for (ys = ye - 1; ys >= 1 && empty(ys); --ys);
 
-				if (ys > 0)
+				if (ys >= 1)
 				{
+					console.log("Moving " + x + ", " + ys);
 					board.move(x, ys, x, ye);
 					// Possibly remove candy from play
 					gravity = true;
 				}
 			}
-			board.performChanges();
+			await board.performChanges();
 
 			return gravity;
 		},
-		generate() {
+		async generate() {
 			let board = this.$refs.board;
 			let generate = false;
 
@@ -340,12 +358,12 @@ cGame = {
 
 			return generate;
 		},
-		evaluateLoop() {
+		async evaluateLoop() {
 			do {
 				let changed = false;
 				//changed |= this.combine();
 				//console.log("COMBINE " + changed);
-				changed |= this.gravity();
+				changed |= await this.gravity();
 				if (changed) break;
 			} while (true);
 		},
