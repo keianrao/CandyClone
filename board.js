@@ -92,6 +92,12 @@ const cBoard = {
 			return true;
 		}
 		*/
+		candyAt(x, y) {
+			return this.state.candies[x + ' ' + y];
+		},
+		highlightedAt(x, y) {
+			return this.state.highlights.includes(this.candyAt(x, y));
+		}
 	},
 	data() {
 		return {
@@ -108,7 +114,8 @@ const cBoard = {
 				<Tile v-for="x in xs"
 					:x="x"
 					:y="y"
-					:candy="state.candies[x + ' ' + y]" />
+					:candy="candyAt(x, y)"
+					:highlighted="highlightedAt(x, y)" />
 			</div>
 		</div>
 	`

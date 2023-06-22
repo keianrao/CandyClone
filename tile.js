@@ -1,9 +1,11 @@
 
 const cTile = {
-	props: [ "x", "y", "candy" ],
+	props: [ "x", "y", "candy", "highlighted" ],
 	computed: {
 		classes() {
-			return this.candy.state;
+			return (
+				this.candy.state
+				+ (this.highlighted ? " highlighted" : ""));
 		},
 	},
 	template: `

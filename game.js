@@ -19,10 +19,10 @@ function createState() {
 		};
 		returnee.candies[x + " " + y] = candy;
 	}
-
+	
 	returnee.patterns = createPatterns();
 
-	returnee.droppees = droppees;
+	returnee.highlights = [];
 
 	return returnee;
 }
@@ -70,22 +70,58 @@ function createPatterns() {
 	];
 }
 
-function droppees() {
-	let candies = this.candies;
+function droppees(candies) {
 	function canDrop(tile) {
+		if (tile.colour == "empty") return false;
 		for (let y = tile.y + 1; y <= 10; ++y) {
 			let dest = candies[tile.x + " " + y];
 			if (dest && dest.colour == "empty") return true;
 		}
-		return false;
 	}
 	return dictFilter(candies, canDrop);
 }
 
-function dictFilter(dict, filter) {
+function dropTarget(tile, candies) {
+	let returnee = null;
+	for (let y = tile.y + 1; y <= 10; ++y) {
+		let dest = candies[tile.x + " " + y];
+		if (!dest || dest.colour != "empty") break;
+		returnee = dest;
+	}
+	return returnee;
+}
+
+function drops(candies) {
+	let returnee = [];
+
+	let hypothetical = JSON.parse(JSON.stringify(candies));
+
+	for (let y = 10; y >= 1; --y)
+	for (let x = 1; x <= 10; ++x) {
+		let src = candies[x + " " + y];
+		let dest = dropTarget(src, hypothetical);
+		if (dest) {
+			returnee.push([src, dest]);
+			eat(hypothetical, [src, dest]);
+		}
+	}
+
+	return returnee;
+};
+
+function eat(candies, drop) {
+	let src = candies[drop[0].x + " " + drop[0].y];
+	let dest = candies[drop[1].x + " " + drop[1].y];
+	dest.colour = src.colour;
+	dest.state = src.state;
+	src.colour = "empty";
+	src.state = "stable";
+}
+
+function dictFilter(dict, predicate) {
 	function consider(acc, key) {
 		let value = dict[key];
-		if (filter(value)) acc.push(value);
+		if (predicate(value)) acc.push(value);
 		return acc;
 	};
 	return Object.keys(dict).reduce(consider, []);
@@ -261,7 +297,9 @@ const cGame = {
 	},
 	mounted() {
 		//this.evaluateLoop();
-		console.log(this.state.droppees());
+		this.state.highlights = droppees(this.state.candies);
+		for (let drop of drops(this.state.candies))
+			eat(this.state.candies, drop);
 	},
 	components: {
 		Board: cBoard,
