@@ -4,224 +4,90 @@ log = document.getElementById("log");
 log.println = string => log.innerText = string + "\n" + log.innerText;
 log.println("Ready.");
 
-cTile = {
-	props: {
-		x: Number,
-		y: Number,
-		type: String,
-		state: String
-	},
-	computed: {
-		classes() {
-			return this.state;
-		},
-	},
-	template: `
-		<div class="tile" :class="classes">
-			<img :src="type + '.png'">
-			{{ x }}, {{ y }}
-		</div>
-	`
-};
 
-cBoard = {
-	methods: {
-		lookupType(x, y) {
-			let type = this.board[x + ", " + y];
-			type = type.split(" ")[0];
-			return type;
-		},
-		lookupState(x, y) {
-			let type = this.board[x + ", " + y];
-			let state =
-				(type.includes(" src") ? "src" : "")
-				+ (type.includes(" dest") ? "dest" : "");
-			return state;
-		},
-		async performChanges() {
-			let promises = [];
-			for (let change of this.changeQueue) {
-				if (change.change == "install") {
-					let board = this.board;
-					let preAction = function() {
-						board[change.x + ", " + change.y] += " dest";
-					};
-					let setupPostAction = function(resolve) { 
-						let postAction = function() {
-								board[change.x + ", " + change.y] = change.type;
-								resolve();
-						};
-						setTimeout(postAction, 750);
-					};
-					preAction();
-					promises.push(new Promise(setupPostAction));
-				}
+function createState() {
+	let returnee = {};	
 
-				if (change.change == "move") {
-					let board = this.board;
-					let preAction = function() {
-						board[change.xe + ", " + change.ye] += " dest";
-						board[change.xs + ", " + change.ys] += " src";
-					};
-					let setupPostAction = function(resolve) {
-						let postAction = function() {
-							let type = board[change.xs + ", " + change.ys];
-							board[change.xe + ", " + change.ye] = type;
-							board[change.xs + ", " + change.ys] = "empty";
-							resolve();
-						};
-						setTimeout(postAction, 750);
-					}
-					preAction();
-					promises.push(new Promise(setupPostAction));
-				}
+	returnee.candies = {};
+	for (let y = 1; y <= 10; ++y)
+	for (let x = 1; x <= 10; ++x) {
+		let candy = {
+			x: x,
+			y: y,
+			colour: random(["empty", "blue", "orange"]),
+			state: "stable"
+		};
+		returnee.candies[x + " " + y] = candy;
+	}
 
-				if (change.change == "drop") {
-					let board = this.board;
-					let preAction = function() {
-						board[change.xe + ", " + change.ye] += " dest";
-					};
-					let setupPostAction = function(resolve) {
-						let postAction = function() {
-							board[change.xe + ", " + change.ye] = change.type;
-							resolve();
-						};
-						setInterval(postAction, 750);
-					}
-					preAction();
-					promises.push(new Promise(setupPostAction));
-				}
-			};
-			await Promise.all(promises);
-		},
-		install(x, y, type) {
-			this.changeQueue.push({
-				change: "install",
-				x: x,
-				y: y,
-				type: type
-			});
-		},
-		move(xs, ys, xe, ye) {
-			this.changeQueue.push({
-				change: "move",
-				xs: xs,
-				ys: ys,
-				xe: xe,
-				ye: ye
-			});
-		},
-		dropFromAbove(x, type) {
-			let empty = y => this.lookupType(x, y) == "empty";
-			let y;
-			for (y = 1; y <= 10 && empty(y); ++y);
-			if (y == 1) return false;
+	returnee.patterns = createPatterns();
 
-			this.changeQueue.push({
-				change: "drop",
-				xe: x,
-				ye: y - 1,
-				type: type
-			});
-			return true;
-		},
-		generateRandomType() {
-			let roll = Math.floor(Math.random() * 3);
-			let type = ["empty", "blue", "orange"][roll];
-			return type;
-		}
-	},
+	return returnee;
+}
+
+function createPatterns() {
+	let horizontal3 = {
+		right: [
+			["same", "any"],
+			["same", "any"],
+			["diff", "any"]
+		],
+		product: "empty"
+	};
+	let vertical3 = {
+		bottom: [
+			["same", "any"],
+			["same", "any"],
+			["diff", "any"]
+		],
+		product: "empty"
+	};
+	let horizontal4 = {
+		bottom: [
+			["same", "any"],
+			["same", "any"],
+			["same", "any"],
+			["diff", "any"]
+		],
+		product: "same striped"
+	};
+	let vertical4 = {
+		bottom: [
+			["same", "any"],
+			["same", "any"],
+			["same", "any"],
+			["diff", "any"]
+		],
+		product: "same striped"
+	};
+	return [
+		horizontal3,
+		vertical3,
+		horizontal4,
+		vertical4
+	];
+}
+
+function random(options) {
+	return options[Math.floor(Math.random() * options.length)];
+}
+
+
+const cGame = {
 	data() {
-		let board = {};
-		for (let y = 1; y <= 10; ++y)
-		for (let x = 1; x <= 10; ++x) {
-			board[x + ", " + y] = this.generateRandomType();
-		}
-
-		let ys = [], xs = [];
-		for (let y = 1; y <= 10; ++y) ys.push(y);
-		for (let x = 1; x <= 10; ++x) xs.push(x);
-		
 		return {
-			board: board,
-			changeQueue: [],
-			ys: ys, xs: xs
-		};
-	},
-	components: {
-		Tile: cTile
-	},
-	template: `
-		<div class="board">
-			<div v-for="y in ys">
-				<Tile v-for="x in xs"
-					:x="x" :y="y"
-					:type="lookupType(x, y)"
-					:state="lookupState(x, y)" />
-			</div>
-		</div>
-	`
-};
-
-cEffects = {
-	template: `
-		<canvas class="effects"></canvas>
-	`
-};
-
-cGame = {
-	data() {
-		let horizontal3 = {
-			right: [
-				["same", "any"],
-				["same", "any"],
-				["diff", "any"]
-			],
-			product: "empty"
-		};
-		let vertical3 = {
-			bottom: [
-				["same", "any"],
-				["same", "any"],
-				["diff", "any"]
-			],
-			product: "empty"
-		};
-		let horizontal4 = {
-			bottom: [
-				["same", "any"],
-				["same", "any"],
-				["same", "any"],
-				["diff", "any"]
-			],
-			product: "same striped"
-		};
-		let vertical4 = {
-			bottom: [
-				["same", "any"],
-				["same", "any"],
-				["same", "any"],
-				["diff", "any"]
-			],
-			product: "same striped"
-		};
-		return {
-			patterns: [
-				horizontal3,
-				vertical3,
-				horizontal4,
-				vertical4
-			]
+			state: createState()
 		};
 	},
 	computed: {
-		classes() {
+		globalClasses() {
 			return {
 				debug: true
 			};
 		}
 	},
 	methods: {
+		/*
 		window(x, y) {
 			let board = this.$refs["board"];
 			
@@ -368,19 +234,23 @@ cGame = {
 				if (!changed) break;
 			} while (true);
 		},
+		*/
 	},
 	mounted() {
-		this.evaluateLoop();
+		//this.evaluateLoop();
 	},
 	components: {
 		Board: cBoard,
 		Effects: cEffects
 	},
 	template: `
-		<Board :class="classes" ref="board" />
-		<Effects :class="classes" />
+		<Board :class="globalClasses"
+			:state="this.state" />
+		<Effects :class="globalClasses"
+			:state="this.state" />
 	`
 };
+
 
 Vue.createApp(cGame).mount("#game");
 
