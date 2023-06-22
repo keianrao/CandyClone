@@ -22,6 +22,8 @@ function createState() {
 
 	returnee.patterns = createPatterns();
 
+	returnee.droppees = droppees;
+
 	return returnee;
 }
 
@@ -66,6 +68,27 @@ function createPatterns() {
 		horizontal4,
 		vertical4
 	];
+}
+
+function droppees() {
+	let candies = this.candies;
+	function canDrop(tile) {
+		for (let y = tile.y + 1; y <= 10; ++y) {
+			let dest = candies[tile.x + " " + y];
+			if (dest && dest.colour == "empty") return true;
+		}
+		return false;
+	}
+	return dictFilter(candies, canDrop);
+}
+
+function dictFilter(dict, filter) {
+	function consider(acc, key) {
+		let value = dict[key];
+		if (filter(value)) acc.push(value);
+		return acc;
+	};
+	return Object.keys(dict).reduce(consider, []);
 }
 
 function random(options) {
@@ -238,6 +261,7 @@ const cGame = {
 	},
 	mounted() {
 		//this.evaluateLoop();
+		console.log(this.state.droppees());
 	},
 	components: {
 		Board: cBoard,
