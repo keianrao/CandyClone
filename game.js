@@ -182,6 +182,12 @@ const cGame = {
 				this.state.highlights = drops.map(droppee);
 				await sleep(500);
 				drops.forEach(acceptDrop);
+				// Candies fall into tiles which can hold candy,
+				// make sure there's no candy at the destination
+				// first, i.e. drop all the destinations first.
+				// So accept bottommost drops first. In our
+				// present case I've asked computeDrops to have
+				// its output sorted bottommost first.
 				await sleep(500);
 			}
 			this.boardDisabled = null;

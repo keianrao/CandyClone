@@ -95,13 +95,16 @@ function computeDrops(candies) {
 		let doesDrop = ([src, dest]) => src != dest;
 		return returnee.filter(doesDrop);
 	}
-	return xs.map(computeXDrops).flat();
+	let reverse = array => array.reverse();
+	return xs.map(computeXDrops).map(reverse).flat();
+	// Reverse so that they are sorted by bottommost first.
 }
 
 function resolveDrops(candies, drops) {
 	let candyAt = coord => candies[coord];
-	return drops.map(coords => coords.map(candyAt)); 	
+	return drops.map(coords => coords.map(candyAt));
 }
+
 
 function acceptDrop([src, dest]) {
 	dest.colour = src.colour;
