@@ -1,141 +1,16 @@
 
-log = document.getElementById("log");
+const log = document.getElementById("log");
 //log.println = string => log.innerText += string + "\n";
 log.println = string => log.innerText = string + "\n" + log.innerText;
 log.println("Ready.");
 
 
-function createState() {
-	let returnee = {};	
-
-	returnee.candies = {};
-	for (let y = 1; y <= 10; ++y)
-	for (let x = 1; x <= 10; ++x) {
-		let candy = {
-			x: x,
-			y: y,
-			colour: random(["empty", "blue", "orange"]),
-			state: "stable"
-		};
-		returnee.candies[x + " " + y] = candy;
-	}
-	
-	returnee.patterns = createPatterns();
-
-	returnee.highlights = [];
-
-	return returnee;
-}
-
-function createPatterns() {
-	let horizontal3 = {
-		right: [
-			["same", "any"],
-			["same", "any"],
-			["diff", "any"]
-		],
-		product: "empty"
-	};
-	let vertical3 = {
-		bottom: [
-			["same", "any"],
-			["same", "any"],
-			["diff", "any"]
-		],
-		product: "empty"
-	};
-	let horizontal4 = {
-		bottom: [
-			["same", "any"],
-			["same", "any"],
-			["same", "any"],
-			["diff", "any"]
-		],
-		product: "same striped"
-	};
-	let vertical4 = {
-		bottom: [
-			["same", "any"],
-			["same", "any"],
-			["same", "any"],
-			["diff", "any"]
-		],
-		product: "same striped"
-	};
-	return [
-		horizontal3,
-		vertical3,
-		horizontal4,
-		vertical4
-	];
-}
-
-function droppees(candies) {
-	function canDrop(tile) {
-		if (tile.colour == "empty") return false;
-		for (let y = tile.y + 1; y <= 10; ++y) {
-			let dest = candies[tile.x + " " + y];
-			if (dest && dest.colour == "empty") return true;
-		}
-	}
-	return dictFilter(candies, canDrop);
-}
-
-function dropTarget(tile, candies) {
-	let returnee = null;
-	for (let y = tile.y + 1; y <= 10; ++y) {
-		let dest = candies[tile.x + " " + y];
-		if (!dest || dest.colour != "empty") break;
-		returnee = dest;
-	}
-	return returnee;
-}
-
-function drops(candies) {
-	let returnee = [];
-
-	let hypothetical = JSON.parse(JSON.stringify(candies));
-
-	for (let y = 10; y >= 1; --y)
-	for (let x = 1; x <= 10; ++x) {
-		let src = candies[x + " " + y];
-		let dest = dropTarget(src, hypothetical);
-		if (dest) {
-			returnee.push([src, dest]);
-			eat(hypothetical, [src, dest]);
-		}
-	}
-
-	return returnee;
-};
-
-function eat(candies, drop) {
-	let src = candies[drop[0].x + " " + drop[0].y];
-	let dest = candies[drop[1].x + " " + drop[1].y];
-	dest.colour = src.colour;
-	dest.state = src.state;
-	src.colour = "empty";
-	src.state = "stable";
-}
-
-function dictFilter(dict, predicate) {
-	function consider(acc, key) {
-		let value = dict[key];
-		if (predicate(value)) acc.push(value);
-		return acc;
-	};
-	return Object.keys(dict).reduce(consider, []);
-}
-
-function random(options) {
-	return options[Math.floor(Math.random() * options.length)];
-}
-
 
 const cGame = {
 	data() {
 		return {
-			state: createState()
+			state: createState(),
+			boardDisabled: null
 		};
 	},
 	computed: {
@@ -294,22 +169,42 @@ const cGame = {
 			} while (true);
 		},
 		*/
+		async evaluateLoop() {
+			let candies = this.state.candies;
+			let droppee = ([src, dest]) => src;
+
+			this.boardDisabled = true;
+			while (true) {
+				let drops = computeDrops(candies);
+				if (!drops) break;
+
+				drops = resolveDrops(candies, drops);
+				this.state.highlights = drops.map(droppee);
+				await sleep(500);
+				drops.forEach(acceptDrop);
+				await sleep(500);
+			}
+			this.boardDisabled = null;
+		}
 	},
-	mounted() {
-		//this.evaluateLoop();
-		this.state.highlights = droppees(this.state.candies);
-		for (let drop of drops(this.state.candies))
-			eat(this.state.candies, drop);
+	async mounted() {
+		await this.evaluateLoop();
+		let drops = computeDrops(this.state.candies);
+		drops = resolveDrops(this.state.candies, drops);
+		let droppees = drops.map(([src, dest]) => src);
 	},
 	components: {
 		Board: cBoard,
 		Effects: cEffects
 	},
 	template: `
-		<Board :class="globalClasses"
-			:state="this.state" />
-		<Effects :class="globalClasses"
-			:state="this.state" />
+		<Board
+			:class="globalClasses"
+			:state="state"
+			:disabled="boardDisabled" />
+		<Effects
+			:class="globalClasses"
+			:state="state" />
 	`
 };
 
